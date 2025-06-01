@@ -1,0 +1,6 @@
+{
+	"appId": "com.example.app",
+	"appName": "mi-app",
+	"webDir": "build",
+	"bundledWebRuntime": false
+}

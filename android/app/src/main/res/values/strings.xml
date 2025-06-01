@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name"> EF_IMJ</string>
+    <string name="title_activity_main"> EF_IMJ</string>
+    <string name="package_name">IMJ.COM.APP</string>
+    <string name="custom_url_scheme">IMJ.COM.APP</string>
+</resources>
