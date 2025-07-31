@@ -10,6 +10,7 @@ import RegisterAttendance from '../pages/RegisterAttendance'
 import RegisterClassroom from '../pages/RegisterClassroom'
 import RegisterPeriod from '../pages/RegisterPeriod'
 import RegisterClassSession from '../pages/RegisterClassSession'
+import MigrateStudent from '../pages/MigrateStudents'
 
 const tabs = [
   { id: 'students', label: 'Estudiantes', component: <RegisterStudent /> },
@@ -22,7 +23,8 @@ const tabs = [
   { id: 'attendance', label: 'Asistencia', component: <RegisterAttendance/>},
   { id: 'classroom', label: 'Salones', component: <RegisterClassroom/> },
   { id: 'period', label: 'Periodo', component:<RegisterPeriod/>},
-{id: 'session', label: 'Dia Clases', component:<RegisterClassSession/>}
+{id: 'session', label: 'Dia Clases', component:<RegisterClassSession/>},
+{id: 'migrate', label: 'Migraciones', component:<MigrateStudent/>}
 ]
 
 export default function AdminPanel() {

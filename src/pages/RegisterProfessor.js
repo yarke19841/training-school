@@ -5,6 +5,7 @@ export default function RegisterProfessor() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [active, setActive] = useState('true')
+  const [role, setRole] = useState('professor')
   const [editingId, setEditingId] = useState(null)
   const [professors, setProfessors] = useState([])
   const [search, setSearch] = useState('')
@@ -14,13 +15,12 @@ export default function RegisterProfessor() {
     const activeBool = active === 'true'
 
     if (editingId) {
-      // eslint-disable-next-line no-restricted-globals
-      const confirmUpdate = confirm('¿Estás seguro de que deseas actualizar este profesor?')
+      const confirmUpdate = window.confirm('¿Estás seguro de que deseas actualizar este profesor?')
       if (!confirmUpdate) return
 
       const { error } = await supabase
         .from('professors')
-        .update({ name, email, active: activeBool })
+        .update({ name, email, active: activeBool, role })
         .eq('id', editingId)
 
       if (error) alert('Error al actualizar: ' + error.message)
@@ -30,7 +30,7 @@ export default function RegisterProfessor() {
     } else {
       const { error } = await supabase
         .from('professors')
-        .insert([{ name, email, active: activeBool }])
+        .insert([{ name, email, active: activeBool, role }])
       if (error) alert('Error al guardar: ' + error.message)
       else alert('Profesor guardado ✅')
     }
@@ -38,6 +38,7 @@ export default function RegisterProfessor() {
     setName('')
     setEmail('')
     setActive('true')
+    setRole('professor')
     fetchProfessors()
   }
 
@@ -47,19 +48,18 @@ export default function RegisterProfessor() {
   }
 
   const handleEdit = (prof) => {
-    // eslint-disable-next-line no-restricted-globals
-    const confirmEdit = confirm(`¿Editar al profesor ${prof.name}?`)
+    const confirmEdit = window.confirm(`¿Editar al profesor ${prof.name}?`)
     if (!confirmEdit) return
 
     setName(prof.name)
     setEmail(prof.email)
     setActive(prof.active ? 'true' : 'false')
+    setRole(prof.role || 'professor')
     setEditingId(prof.id)
   }
 
   const toggleActive = async (id, currentStatus) => {
-    // eslint-disable-next-line no-restricted-globals
-    const confirmToggle = confirm(
+    const confirmToggle = window.confirm(
       `¿Deseas ${currentStatus ? 'desactivar' : 'activar'} este profesor?`
     )
     if (!confirmToggle) return
@@ -85,7 +85,7 @@ export default function RegisterProfessor() {
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-xl mx-auto bg-white shadow-lg rounded-xl p-6">
         <h2 className="text-2xl font-bold text-center mb-6">
-          {editingId ? 'Editar Profesor' : 'Registrar Profesor'}
+          {editingId ? 'Editar Profesor/Asistente' : 'Registrar Profesor/Asistente'}
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
@@ -112,6 +112,15 @@ export default function RegisterProfessor() {
             <option value="true">Activo</option>
             <option value="false">Inactivo</option>
           </select>
+          <select
+            value={role}
+            onChange={e => setRole(e.target.value)}
+            className="w-full border rounded px-4 py-2"
+            required
+          >
+            <option value="professor">Profesor</option>
+            <option value="assistant">Asistente</option>
+          </select>
           <div className="flex justify-between">
             <button
               type="submit"
@@ -127,6 +136,7 @@ export default function RegisterProfessor() {
                   setName('')
                   setEmail('')
                   setActive('true')
+                  setRole('professor')
                 }}
                 className="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded"
               >
@@ -139,7 +149,7 @@ export default function RegisterProfessor() {
 
       <div className="max-w-3xl mx-auto mt-10">
         <div className="mb-4 flex justify-between items-center">
-          <h3 className="text-xl font-semibold">Todos los Profesores</h3>
+          <h3 className="text-xl font-semibold">Todos los Profesores y Asistentes</h3>
           <input
             type="text"
             value={search}
@@ -166,6 +176,9 @@ export default function RegisterProfessor() {
                   }`}
                 >
                   {p.active ? 'Activo' : 'Inactivo'}
+                </p>
+                <p className="text-sm italic">
+                  {p.role === 'assistant' ? 'Asistente' : 'Profesor'}
                 </p>
               </div>
               <div className="flex flex-col space-y-2">
