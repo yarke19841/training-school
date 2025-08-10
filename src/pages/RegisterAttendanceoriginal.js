@@ -1,104 +1,51 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase'
 
-export default function TeacherAttendance() {
-  // ---- profesor ----
+export default function RegisterAttendance() {
   const [professors, setProfessors] = useState([])
   const [professorId, setProfessorId] = useState('')
-  const [professorName, setProfessorName] = useState('')
-  const [lockedProfessor, setLockedProfessor] = useState(false)
-
-  // ---- clases/fechas/estudiantes ----
   const [classes, setClasses] = useState([])
   const [selectedClassId, setSelectedClassId] = useState('')
-  const [classDates, setClassDates] = useState([])
-  const [selectedDate, setSelectedDate] = useState('')
   const [students, setStudents] = useState([])
   const [attendance, setAttendance] = useState([])
+  const [classDates, setClassDates] = useState([])
+  const [selectedDate, setSelectedDate] = useState('')
   const [viewMode, setViewMode] = useState('register')
   const [existingAttendance, setExistingAttendance] = useState([])
 
-  const toDateOnly = (s) => (s ? s.split('T')[0] : '')
-
-  // =========================
-  // INIT: bloquea profesor si es teacher y precarga
-  // =========================
   useEffect(() => {
-    const init = async () => {
-      const role = localStorage.getItem('role')
-      const email = (localStorage.getItem('user_email') || '').toLowerCase()
-
-      // Cargar clases (luego filtramos por profesorId)
-      const { data: classesData } = await supabase
-        .from('classes')
-        .select(`id, professor_id, subjects(name), professors(name,email), periods(name), classrooms(name), period_id`)
-      setClasses(classesData || [])
-
-      if (role === 'teacher' && email) {
-        // Intento directo: buscar profesor por email
-        const { data: prof } = await supabase
-          .from('professors')
-          .select('id, name, email')
-          .ilike('email', email)
-          .maybeSingle()
-
-        if (prof) {
-          setProfessors([{ id: prof.id, name: prof.name }])
-          setProfessorId(String(prof.id))
-          setProfessorName(prof.name)
-          setLockedProfessor(true)
-
-          const mine = (classesData || []).filter(c => c.professor_id === prof.id)
-          if (mine.length === 1) setSelectedClassId(String(mine[0].id))
-          return
-        }
-
-        // Fallback: derivar desde classes (por si RLS bloquea professors)
-        const fromClass = (classesData || []).find(
-          c => (c.professors?.email || '').toLowerCase() === email
-        )
-        if (fromClass) {
-          setProfessors([{ id: fromClass.professor_id, name: fromClass.professors?.name || 'Profesor' }])
-          setProfessorId(String(fromClass.professor_id))
-          setProfessorName(fromClass.professors?.name || 'Profesor')
-          setLockedProfessor(true)
-
-          const mine = (classesData || []).filter(c => c.professor_id === fromClass.professor_id)
-          if (mine.length === 1) setSelectedClassId(String(mine[0].id))
-          return
-        }
-      }
-
-      // Admin / fallback
-      const { data: allProfs } = await supabase
-        .from('professors')
-        .select('id, name')
-        .order('name', { ascending: true })
-      setProfessors(allProfs || [])
-      setLockedProfessor(false)
-    }
-
-    init()
+    fetchInitialData()
   }, [])
 
-  // =========================
-  // DATA LOADERS
-  // =========================
+  const fetchInitialData = async () => {
+    const { data: professorsData } = await supabase.from('professors').select('*')
+    const { data: classesData } = await supabase
+      .from('classes')
+      .select(`id, professor_id, subjects(name), professors(name), periods(name), classrooms(name), period_id`)
+
+    setProfessors(professorsData || [])
+    setClasses(classesData || [])
+  }
+
   const fetchStudentsByClass = useCallback(async (classId) => {
     const { data, error } = await supabase
       .from('enrollments')
       .select('student_id, students(id, name, lastname)')
-      .eq('class_id', Number(classId))
+      .eq('class_id', classId)
 
-    if (error) return console.error('Error fetching students:', error)
+    if (error) {
+      console.error('Error fetching students:', error)
+      return
+    }
 
-    const list = (data || []).map(d => ({
+    const attendanceList = data.map(d => ({
       student_id: d.student_id,
       name: `${d.students.name} ${d.students.lastname}`,
       status: 'Presente'
     }))
-    setStudents(list)
-    setAttendance(list)
+
+    setStudents(attendanceList)
+    setAttendance(attendanceList)
   }, [])
 
   const fetchClassSessions = useCallback(async () => {
@@ -112,7 +59,11 @@ export default function TeacherAttendance() {
       .eq('active', true)
       .order('date_class', { ascending: true })
 
-    if (error) return console.error('Error loading sessions', error)
+    if (error) {
+      console.error('Error loading sessions', error)
+      return
+    }
+
     setClassDates(data || [])
   }, [selectedClassId, classes])
 
@@ -120,75 +71,94 @@ export default function TeacherAttendance() {
     const { data, error } = await supabase
       .from('attendance')
       .select('id, student_id, status, date, students(name, lastname)')
-      .eq('class_id', Number(selectedClassId))
-      .eq('date', toDateOnly(selectedDate))
+      .eq('class_id', selectedClassId)
+      .eq('date', selectedDate)
 
-    if (error) return console.error('Error fetching attendance:', error)
+    if (error) {
+      console.error('Error fetching attendance:', error)
+      return
+    }
+
     setExistingAttendance(data || [])
   }, [selectedClassId, selectedDate])
 
-  // =========================
-  // HANDLERS
-  // =========================
   const handleAttendanceChange = (studentId, value) => {
-    setAttendance(prev => prev.map(a => (a.student_id === studentId ? { ...a, status: value } : a)))
+    setAttendance(prev =>
+      prev.map(a =>
+        a.student_id === studentId ? { ...a, status: value } : a
+      )
+    )
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const classIdNum = Number(selectedClassId)
-    const dateOnly = toDateOnly(selectedDate)
-    if (!classIdNum || !dateOnly) return alert('⚠️ Clase o fecha no seleccionada')
-    if (students.length === 0) return alert('⚠️ No hay estudiantes cargados')
+
+    if (!selectedDate || !selectedClassId) return alert('⚠️ Clase o fecha no seleccionada')
 
     const { data: existing, error: findError } = await supabase
       .from('attendance')
-      .select('id')
-      .eq('class_id', classIdNum)
-      .eq('date', dateOnly)
+      .select('*')
+      .eq('class_id', selectedClassId)
+      .eq('date', selectedDate)
 
-    if (findError) return alert('❌ Error al verificar asistencia')
-    if ((existing || []).length > 0) return alert('⚠️ Ya existe asistencia para esa clase y fecha')
+    if (findError) return alert('❌ Error al verificar asistencia existente')
+
+    if (existing.length > 0) {
+      alert('⚠️ Ya existe asistencia para esa clase y fecha')
+      return
+    }
 
     const records = attendance.map(a => ({
       student_id: a.student_id,
-      class_id: classIdNum,
-      date: dateOnly,
+      class_id: selectedClassId,
+      date: selectedDate,
       status: a.status
     }))
-    const { error } = await supabase.from('attendance').insert(records)
-    if (error) return alert('❌ Error al guardar: ' + error.message)
 
-    alert('✅ Asistencia guardada')
-    setAttendance([])
-    setStudents([])
-    setSelectedClassId('')
-    setSelectedDate('')
+    const { error } = await supabase.from('attendance').insert(records)
+
+    if (error) {
+      alert('❌ Error al guardar asistencia: ' + error.message)
+    } else {
+      alert('✅ Asistencia guardada')
+      setAttendance([])
+      setStudents([])
+      setSelectedClassId('')
+      setSelectedDate('')
+    }
   }
 
   const handleUpdate = async (id, newStatus) => {
-    const { error } = await supabase.from('attendance').update({ status: newStatus }).eq('id', id)
+    const { error } = await supabase
+      .from('attendance')
+      .update({ status: newStatus })
+      .eq('id', id)
+
     if (error) alert('❌ Error al actualizar')
     else fetchAttendance()
   }
 
   const handleDelete = async (id) => {
-    if (!window.confirm('¿Eliminar este registro de asistencia?')) return
-    const { error } = await supabase.from('attendance').delete().eq('id', id)
+    const confirmed = window.confirm('¿Eliminar este registro de asistencia?')
+    if (!confirmed) return
+
+    const { error } = await supabase
+      .from('attendance')
+      .delete()
+      .eq('id', id)
+
     if (error) alert('❌ Error al eliminar')
     else fetchAttendance()
   }
 
   const formatDate = (dateString) => {
     if (!dateString) return ''
-    const [y, m, d] = toDateOnly(dateString).split('-')
-    return `${d}/${m}/${y}`
+    const [year, month, day] = dateString.split('T')[0].split('-')
+    return `${day}/${month}/${year}`
   }
 
-  // Clases filtradas por profesor
   const filteredClasses = classes.filter(c => c.professor_id === Number(professorId))
 
-  // Triggers de carga
   useEffect(() => {
     if (viewMode === 'register' && selectedClassId) {
       fetchStudentsByClass(selectedClassId)
@@ -202,13 +172,15 @@ export default function TeacherAttendance() {
   }, [selectedClassId, viewMode, fetchStudentsByClass, fetchClassSessions])
 
   useEffect(() => {
-    if (viewMode === 'view' && selectedClassId && selectedDate) fetchAttendance()
+    if (viewMode === 'view' && selectedClassId && selectedDate) {
+      fetchAttendance()
+    }
   }, [viewMode, selectedClassId, selectedDate, fetchAttendance])
 
   return (
     <div className="p-6 bg-gray-100 min-h-screen">
       <div className="max-w-3xl mx-auto bg-white p-6 rounded-xl shadow">
-        <h2 className="text-2xl font-bold mb-4 text-center">Registro de Asistencia 2025</h2>
+        <h2 className="text-2xl font-bold mb-4 text-center">Registro de Asistencia</h2>
 
         <div className="flex justify-center mb-4 gap-4">
           <button
@@ -240,27 +212,18 @@ export default function TeacherAttendance() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Profesor: si es teacher, mostramos su nombre y bloqueamos */}
           <select
-            className={`w-full border px-4 py-2 rounded ${lockedProfessor ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-            value={String(professorId || '')}
+            className="w-full border px-4 py-2 rounded"
+            value={professorId}
             onChange={e => setProfessorId(e.target.value)}
             required
-            disabled={lockedProfessor}
           >
-            {lockedProfessor ? (
-              <option value={String(professorId)}>{`👨‍🏫 ${professorName}`}</option>
-            ) : (
-              <>
-                <option value="">👨‍🏫 Selecciona un profesor 2025</option>
-                {professors.map(p => (
-                  <option key={p.id} value={String(p.id)}>{p.name}</option>
-                ))}
-              </>
-            )}
+            <option value="">👨‍🏫 Selecciona un profesor</option>
+            {professors.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
           </select>
 
-          {/* Clases del profesor */}
           <select
             className="w-full border px-4 py-2 rounded"
             value={selectedClassId}
@@ -270,13 +233,12 @@ export default function TeacherAttendance() {
           >
             <option value="">📚 Selecciona una clase</option>
             {filteredClasses.map(c => (
-              <option key={c.id} value={String(c.id)}>
+              <option key={c.id} value={c.id}>
                 {c.subjects?.name} - {c.classrooms?.name}
               </option>
             ))}
           </select>
 
-          {/* Fechas disponibles */}
           <select
             className="w-full border px-4 py-2 rounded"
             value={selectedDate}
@@ -288,7 +250,7 @@ export default function TeacherAttendance() {
               {viewMode === 'register' ? '🗓️ Selecciona un domingo' : '🗓️ Selecciona fecha registrada'}
             </option>
             {classDates.map(d => (
-              <option key={d.id} value={toDateOnly(d.date_class)}>
+              <option key={d.id} value={d.date_class}>
                 {formatDate(d.date_class)}
               </option>
             ))}

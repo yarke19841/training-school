@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import RegisterStudent from '../pages/RegisterStudent'
 import RegisterProfessor from '../pages/RegisterProfessor'
 import RegisterClass from '../pages/RegisterClass'
@@ -23,69 +23,20 @@ const tabs = [
   { id: 'attendance', label: 'Asistencia', component: <RegisterAttendance/>},
   { id: 'classroom', label: 'Salones', component: <RegisterClassroom/> },
   { id: 'period', label: 'Periodo', component:<RegisterPeriod/>},
-  { id: 'session', label: 'Dia Clases', component:<RegisterClassSession/>},
-  { id: 'migrate', label: 'Migraciones', component:<MigrateStudent/>}
+{id: 'session', label: 'Dia Clases', component:<RegisterClassSession/>},
+{id: 'migrate', label: 'Migraciones', component:<MigrateStudent/>}
 ]
 
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState('students')
-  const [checking, setChecking] = useState(true)
-
-  const userName = localStorage.getItem('user_name') || 'Administrador'
-
-  useEffect(() => {
-    const token = localStorage.getItem('token')
-    const role = localStorage.getItem('role')
-
-    if (!token || role !== 'admin') {
-      window.location.href = '/login'
-    } else {
-      setChecking(false)
-    }
-  }, [])
-
-  const handleLogout = () => {
-    const confirmLogout = window.confirm('¿Estás seguro que deseas cerrar sesión?')
-    if (confirmLogout) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('role')
-      localStorage.removeItem('user_name')
-      localStorage.removeItem('user_email')
-      localStorage.removeItem('user_id')
-      window.location.href = '/login'
-    }
-  }
-
-  if (checking) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <p className="text-gray-600 font-semibold">Verificando acceso...</p>
-      </div>
-    )
-  }
 
   const currentTab = tabs.find(tab => tab.id === activeTab)
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-6xl mx-auto bg-white rounded-xl shadow-md p-6">
-        {/* Encabezado: saludo + logout */}
-        <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-3xl font-bold text-center sm:text-left">📋 Panel Administrativo</h1>
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-gray-600 font-semibold">
-              Bienvenido: <span className="text-blue-600">{userName}</span>
-            </span>
-            <button
-              onClick={handleLogout}
-              className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded"
-            >
-              Cerrar sesión
-            </button>
-          </div>
-        </div>
+        <h1 className="text-3xl font-bold mb-6 text-center">📋 Panel Administrativo</h1>
 
-        {/* Tabs */}
         <div className="flex flex-wrap justify-center gap-4 mb-8">
           {tabs.map(tab => (
             <button
@@ -102,7 +53,6 @@ export default function AdminPanel() {
           ))}
         </div>
 
-        {/* Contenido */}
         <div>{currentTab?.component || <p>Sección en construcción 🚧</p>}</div>
       </div>
     </div>

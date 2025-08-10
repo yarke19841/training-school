@@ -1,39 +1,44 @@
 import { useState } from 'react'
-import RegisterStudent from '../pages/RegisterStudent'
-import RegisterProfessor from '../pages/RegisterProfessor'
-import RegisterClass from '../pages/RegisterClass'
-import RegisterSubject from '../pages/RegisterSubject'
-import RegisterGrade from '../pages/RegisterGrade'
-import RegisterEnrollment from '../pages/RegisterEnrollment'
 import RegisterScores from '../pages/RegisterScores'
 import RegisterAttendance from '../pages/RegisterAttendance'
-import RegisterClassroom from '../pages/RegisterClassroom'
-import RegisterPeriod from '../pages/RegisterPeriod'
-import RegisterClassSession from '../pages/RegisterClassSession'
 
 const tabs = [
-  { id: 'students', label: 'Estudiantes', component: <RegisterStudent /> },
-  { id: 'professors', label: 'Profesores', component: <RegisterProfessor /> },
-  { id: 'classes', label: 'Clases', component: <RegisterClass /> },
-  { id: 'subjects', label: 'Materias', component: <RegisterSubject /> },
-  { id: 'grade', label: 'Calificaciones', component: <RegisterGrade/> },
-  { id: 'enrolment', label: 'Registro', component: <RegisterEnrollment/> },
-  { id: 'scores', label: 'Calificaciones', component: <RegisterScores/>},
-  { id: 'attendance', label: 'Asistencia', component: <RegisterAttendance/>},
-  { id: 'classroom', label: 'Salones', component: <RegisterClassroom/> },
-  { id: 'period', label: 'Periodo', component:<RegisterPeriod/>},
-{id: 'session', label: 'Dia Clases', component:<RegisterClassSession/>}
+  { id: 'scores', label: 'Calificaciones', component: <RegisterScores /> },
+  { id: 'attendance', label: 'Asistencia', component: <RegisterAttendance /> },
 ]
 
-export default function AdminPanel() {
-  const [activeTab, setActiveTab] = useState('students')
+export default function TeacherPanel() {
+  const [activeTab, setActiveTab] = useState('scores')
 
   const currentTab = tabs.find(tab => tab.id === activeTab)
+  const userName = localStorage.getItem('user_name') || 'Profesor'
+
+  const handleLogout = () => {
+    const confirmLogout = window.confirm('¿Estás seguro que deseas cerrar sesión?')
+    if (confirmLogout) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('role')
+      localStorage.removeItem('user_name')
+      window.location.href = '/login'
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-6xl mx-auto bg-white rounded-xl shadow-md p-6">
-        <h1 className="text-3xl font-bold mb-6 text-center">📋 Panel de Profesores</h1>
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">
+            Bienvenido: {userName}
+          </h1>
+          <button
+            onClick={handleLogout}
+            className="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded"
+          >
+            Cerrar sesión
+          </button>
+        </div>
+
+        <h2 className="text-3xl font-bold mb-6 text-center">📋 Panel de Profesores</h2>
 
         <div className="flex flex-wrap justify-center gap-4 mb-8">
           {tabs.map(tab => (

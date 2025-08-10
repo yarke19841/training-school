@@ -2,8 +2,13 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase'
 
 export default function RegisterGrades() {
+  // ---- profesor ----
   const [professors, setProfessors] = useState([])
   const [professorId, setProfessorId] = useState('')
+  const [professorName, setProfessorName] = useState('')
+  const [lockedProfessor, setLockedProfessor] = useState(false)
+
+  // ---- data ----
   const [classes, setClasses] = useState([])
   const [selectedClassId, setSelectedClassId] = useState('')
   const [students, setStudents] = useState([])
@@ -12,32 +17,81 @@ export default function RegisterGrades() {
   const [existingGrades, setExistingGrades] = useState([])
   const [viewMode, setViewMode] = useState('register')
 
+  // =========================
+  // INIT: bloquea profesor si es teacher y precarga
+  // =========================
   useEffect(() => {
-    fetchInitialData()
+    const init = async () => {
+      const role = localStorage.getItem('role')
+      const email = (localStorage.getItem('user_email') || '').toLowerCase()
+
+      // Cargar clases (luego filtramos por profesorId)
+      const { data: classesData } = await supabase
+        .from('classes')
+        .select('id, professor_id, subjects(name), classrooms(name), period_id')
+      setClasses(classesData || [])
+
+      if (role === 'teacher' && email) {
+        // Intento directo: buscar profesor por email
+        const { data: prof } = await supabase
+          .from('professors')
+          .select('id, name, email')
+          .ilike('email', email)
+          .maybeSingle()
+
+        if (prof) {
+          setProfessors([{ id: prof.id, name: prof.name }])
+          setProfessorId(String(prof.id))
+          setProfessorName(prof.name)
+          setLockedProfessor(true)
+
+          const mine = (classesData || []).filter(c => c.professor_id === prof.id)
+          if (mine.length === 1) setSelectedClassId(String(mine[0].id))
+          return
+        }
+
+        // Fallback: derivar desde classes por si RLS bloquea professors
+        const fromClass = (classesData || []).find(c => (c.professors?.email || '').toLowerCase() === email)
+        if (fromClass) {
+          setProfessors([{ id: fromClass.professor_id, name: fromClass.professors?.name || 'Profesor' }])
+          setProfessorId(String(fromClass.professor_id))
+          setProfessorName(fromClass.professors?.name || 'Profesor')
+          setLockedProfessor(true)
+
+          const mineB = (classesData || []).filter(c => c.professor_id === fromClass.professor_id)
+          if (mineB.length === 1) setSelectedClassId(String(mineB[0].id))
+          return
+        }
+      }
+
+      // Admin / fallback
+      const { data: professorsData } = await supabase
+        .from('professors')
+        .select('id, name')
+        .order('name', { ascending: true })
+
+      setProfessors(professorsData || [])
+      setLockedProfessor(false)
+    }
+
+    init()
   }, [])
 
-  const fetchInitialData = async () => {
-    const { data: professorsData } = await supabase.from('professors').select('*')
-    const { data: classesData } = await supabase
-      .from('classes')
-      .select('id, professor_id, subjects(name), classrooms(name), period_id')
-
-    setProfessors(professorsData || [])
-    setClasses(classesData || [])
-  }
-
+  // =========================
+  // LOADERS
+  // =========================
   const fetchStudentsByClass = useCallback(async (classId) => {
     const { data, error } = await supabase
       .from('enrollments')
       .select('student_id, students(id, name, lastname)')
-      .eq('class_id', classId)
+      .eq('class_id', Number(classId))
 
     if (error) {
       console.error('Error fetching students:', error)
       return
     }
 
-    const list = data.map(d => ({
+    const list = (data || []).map(d => ({
       student_id: d.student_id,
       name: `${d.students.name} ${d.students.lastname}`,
       grade: ''
@@ -53,7 +107,7 @@ export default function RegisterGrades() {
     const { data, error } = await supabase
       .from('grades')
       .select('id, student_id, grade, students(name, lastname)')
-      .eq('class_id', selectedClassId)
+      .eq('class_id', Number(selectedClassId))
       .eq('evaluation', evaluationType)
 
     if (error) {
@@ -64,36 +118,38 @@ export default function RegisterGrades() {
     setExistingGrades(data || [])
   }, [selectedClassId, evaluationType])
 
+  // =========================
+  // HANDLERS
+  // =========================
   const handleGradeChange = (studentId, value) => {
     setGrades(prev =>
-      prev.map(g =>
-        g.student_id === studentId ? { ...g, grade: value } : g
-      )
+      prev.map(g => (g.student_id === studentId ? { ...g, grade: value } : g))
     )
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!evaluationType || !selectedClassId) return alert('⚠️ Clase o evaluación no seleccionada')
+    if (students.length === 0) return alert('⚠️ No hay estudiantes cargados')
 
     const { data: existing, error: checkError } = await supabase
       .from('grades')
-      .select('*')
-      .eq('class_id', selectedClassId)
+      .select('id')
+      .eq('class_id', Number(selectedClassId))
       .eq('evaluation', evaluationType)
 
     if (checkError) return alert('❌ Error al verificar')
 
-    if (existing.length > 0) {
+    if ((existing || []).length > 0) {
       alert('⚠️ Ya existen calificaciones para esa clase y evaluación')
       return
     }
 
     const records = grades.map(g => ({
       student_id: g.student_id,
-      class_id: selectedClassId,
+      class_id: Number(selectedClassId),
       evaluation: evaluationType,
-      grade: Number(g.grade)
+      grade: g.grade === '' ? null : Number(g.grade)
     }))
 
     const { error } = await supabase.from('grades').insert(records)
@@ -112,7 +168,7 @@ export default function RegisterGrades() {
   const handleUpdate = async (id, newGrade) => {
     const { error } = await supabase
       .from('grades')
-      .update({ grade: Number(newGrade) })
+      .update({ grade: newGrade === '' ? null : Number(newGrade) })
       .eq('id', id)
 
     if (error) alert('❌ Error al actualizar')
@@ -120,18 +176,15 @@ export default function RegisterGrades() {
   }
 
   const handleDelete = async (id) => {
-    const confirmed = window.confirm('¿Eliminar esta calificación?')
-    if (!confirmed) return
-
-    const { error } = await supabase
-      .from('grades')
-      .delete()
-      .eq('id', id)
-
+    if (!window.confirm('¿Eliminar esta calificación?')) return
+    const { error } = await supabase.from('grades').delete().eq('id', id)
     if (error) alert('❌ Error al eliminar')
     else fetchExistingGrades()
   }
 
+  // =========================
+  // DERIVADOS & EFECTOS
+  // =========================
   const filteredClasses = classes.filter(c => c.professor_id === Number(professorId))
 
   useEffect(() => {
@@ -179,18 +232,27 @@ export default function RegisterGrades() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Profesor: bloqueado si es teacher */}
           <select
-            className="w-full border px-4 py-2 rounded"
-            value={professorId}
+            className={`w-full border px-4 py-2 rounded ${lockedProfessor ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+            value={String(professorId || '')}
             onChange={e => setProfessorId(e.target.value)}
             required
+            disabled={lockedProfessor}
           >
-            <option value="">👨‍🏫 Selecciona un profesor</option>
-            {professors.map(p => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
+            {lockedProfessor ? (
+              <option value={String(professorId)}>{`👨‍🏫 ${professorName}`}</option>
+            ) : (
+              <>
+                <option value="">👨‍🏫 Selecciona un profesor</option>
+                {professors.map(p => (
+                  <option key={p.id} value={String(p.id)}>{p.name}</option>
+                ))}
+              </>
+            )}
           </select>
 
+          {/* Clases del profesor */}
           <select
             className="w-full border px-4 py-2 rounded"
             value={selectedClassId}
@@ -200,12 +262,13 @@ export default function RegisterGrades() {
           >
             <option value="">📚 Selecciona una clase</option>
             {filteredClasses.map(c => (
-              <option key={c.id} value={c.id}>
+              <option key={c.id} value={String(c.id)}>
                 {c.subjects?.name} - {c.classrooms?.name}
               </option>
             ))}
           </select>
 
+          {/* Tipo de evaluación */}
           <select
             className="w-full border px-4 py-2 rounded"
             value={evaluationType}
@@ -215,6 +278,7 @@ export default function RegisterGrades() {
           >
             <option value="">📝 Selecciona una evaluación</option>
             <option value="Nota Final">Nota Final</option>
+            {/* agrega más evaluaciones si las usas */}
           </select>
 
           {viewMode === 'register' && students.length > 0 && (
@@ -226,7 +290,7 @@ export default function RegisterGrades() {
                     type="number"
                     min="0"
                     max="100"
-                    value={grades.find(g => g.student_id === s.student_id)?.grade || ''}
+                    value={grades.find(g => g.student_id === s.student_id)?.grade ?? ''}
                     onChange={e => handleGradeChange(s.student_id, e.target.value)}
                     className="border px-2 py-1 rounded w-24 text-center"
                     required

@@ -17,23 +17,9 @@ export default function useUserRole(email) {
       try {
         console.log('Buscando rol para email:', email)
 
-        // Buscar en admins
-        const { data: adminData, error: adminErr } = await supabase
-          .from('admins')
-          .select('email')
-          .eq('email', email.toLowerCase())
-        if (adminErr) console.error('Error admins:', adminErr)
-        console.log('Admins encontrados:', adminData)
-
-        if (adminData && adminData.length > 0) {
-          setRole('admin')
-          setLoading(false)
-          return
-        }
-
         // Buscar en teachers
         const { data: teacherData, error: teacherErr } = await supabase
-          .from('teachers')
+          .from('professors')
           .select('email')
           .eq('email', email.toLowerCase())
         if (teacherErr) console.error('Error teachers:', teacherErr)
@@ -44,6 +30,25 @@ export default function useUserRole(email) {
           setLoading(false)
           return
         }
+        
+        // Buscar en admins
+        const { data: adminData, error: adminErr } = await supabase
+          .from('admins')
+          .select('email')
+          .eq('email', email.toLowerCase())
+        if (adminErr) console.error('Error admins:', adminErr)
+        console.log('Admins encontrados:', adminData)
+
+       
+       
+       
+       if (adminData && adminData.length > 0) {
+          setRole('admin')
+          setLoading(false)
+          return
+        }
+
+        
 
         // Buscar en students
         const { data: studentData, error: studentErr } = await supabase
